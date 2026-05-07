@@ -1,12 +1,13 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0e1116" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f172a" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="MetroTune" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="description" content="Modern metronome and guitar tuner." />
     <title>MetroTune</title>
     <link rel="manifest" href="manifest.json" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
@@ -15,67 +16,101 @@
   </head>
   <body>
     <main class="app-shell">
-      <section class="stage" aria-label="Metronome and tuner">
-        <div class="brand">
-          <span class="brand-mark"></span>
-          <span>MetroTune</span>
+      <header class="app-header">
+        <div>
+          <p class="app-name">MetroTune</p>
+          <h1>Metronome &amp; Guitar Tuner</h1>
+        </div>
+        <span class="status-pill" id="statusPill">Ready</span>
+      </header>
+
+      <section class="card metronome-card" aria-label="Metronome">
+        <div class="needle-stage" aria-label="Metronome visual">
+          <div class="swing-guide" aria-hidden="true"></div>
+          <div class="pendulum" id="pendulum">
+            <span class="pendulum-dot"></span>
+          </div>
+          <div class="pivot" aria-hidden="true"></div>
         </div>
 
-        <div class="metronome-wrap">
-          <div class="beat-orbit" aria-hidden="true">
-            <div class="pendulum" id="pendulum">
-              <span class="pendulum-weight"></span>
-            </div>
-          </div>
-          <div class="beat-readout">
-            <span id="beatCount">1</span>
-            <small>beat</small>
-          </div>
+        <div class="bpm-display" aria-live="polite">
+          <span id="bpmDisplay">120</span>
+          <strong>BPM</strong>
         </div>
 
-        <section class="tuner" aria-label="Tuner">
-          <div class="tuner-display">
-            <span class="note" id="noteName">--</span>
-            <span class="frequency" id="frequency">마이크 대기</span>
-          </div>
-          <div class="tuner-meter" aria-hidden="true">
-            <span class="flat">♭</span>
-            <div class="meter-line">
-              <span class="meter-center"></span>
-              <span class="meter-needle" id="tunerNeedle"></span>
-            </div>
-            <span class="sharp">#</span>
-          </div>
-          <button class="secondary-button" id="tunerButton" type="button">튜너 켜기</button>
-        </section>
+        <div class="bpm-controls">
+          <button class="step-button" id="decreaseBpm" type="button" aria-label="Decrease BPM">-</button>
+          <input id="bpmInput" type="range" min="40" max="220" value="120" aria-label="BPM" />
+          <button class="step-button" id="increaseBpm" type="button" aria-label="Increase BPM">+</button>
+        </div>
+
+        <div class="preset-grid main-presets" aria-label="Main BPM presets">
+          <button type="button" data-bpm="60">60</button>
+          <button type="button" data-bpm="80">80</button>
+          <button type="button" data-bpm="100">100</button>
+          <button type="button" data-bpm="120">120</button>
+        </div>
+
+        <div class="preset-grid extra-presets" aria-label="Extra BPM presets">
+          <button type="button" data-bpm="70">70</button>
+          <button type="button" data-bpm="90">90</button>
+          <button type="button" data-bpm="110">110</button>
+          <button type="button" data-bpm="130">130</button>
+          <button type="button" data-bpm="140">140</button>
+          <button type="button" data-bpm="150">150</button>
+          <button type="button" data-bpm="160">160</button>
+          <button type="button" data-bpm="170">170</button>
+          <button type="button" data-bpm="180">180</button>
+        </div>
+
+        <div class="transport">
+          <button class="start-button" id="startButton" type="button">Start</button>
+          <button class="stop-button" id="stopButton" type="button">Stop</button>
+        </div>
       </section>
 
-      <aside class="controls" aria-label="Metronome controls">
-        <div class="bpm-panel">
-          <label for="bpmInput">BPM</label>
-          <input id="bpmInput" type="number" min="30" max="240" value="120" />
-          <input id="bpmSlider" type="range" min="30" max="240" value="120" />
-          <div class="step-controls" aria-label="BPM quick controls">
-            <button type="button" data-step="-5">-5</button>
-            <button type="button" data-step="-1">-1</button>
-            <button type="button" data-step="1">+1</button>
-            <button type="button" data-step="5">+5</button>
+      <section class="card tuner-card" aria-label="Guitar Tuner">
+        <div class="section-header">
+          <div>
+            <p class="section-label">Guitar Tuner</p>
+            <h2>Standard E A D G B E</h2>
+          </div>
+          <button class="mic-button" id="tunerButton" type="button">Mic On</button>
+        </div>
+
+        <div class="reference-notes" aria-label="Reference tones">
+          <button type="button" data-note="E2" data-frequency="82.41">E</button>
+          <button type="button" data-note="A2" data-frequency="110.00">A</button>
+          <button type="button" data-note="D3" data-frequency="146.83">D</button>
+          <button type="button" data-note="G3" data-frequency="196.00">G</button>
+          <button type="button" data-note="B3" data-frequency="246.94">B</button>
+          <button type="button" data-note="E4" data-frequency="329.63">E</button>
+        </div>
+
+        <div class="tuner-readout">
+          <div class="detected-panel">
+            <span class="detected-note" id="noteName">--</span>
+            <small id="frequency">Mic waiting</small>
+          </div>
+          <div class="target-panel">
+            <span id="targetNote">Choose a target note</span>
+            <small id="centDiff">Reference tones work without the mic</small>
           </div>
         </div>
 
-        <div class="beat-panel">
-          <label for="beatsSelect">박자</label>
-          <select id="beatsSelect">
-            <option value="2">2/4</option>
-            <option value="3">3/4</option>
-            <option value="4" selected>4/4</option>
-            <option value="5">5/4</option>
-            <option value="6">6/8</option>
-          </select>
+        <div class="tuning-meter" aria-label="Tuning meter">
+          <div class="meter-labels">
+            <span>Flat</span>
+            <span>In Tune</span>
+            <span>Sharp</span>
+          </div>
+          <div class="meter-track">
+            <span class="meter-center"></span>
+            <span class="meter-needle" id="tunerNeedle"></span>
+          </div>
+          <strong id="tuningState">Idle</strong>
         </div>
-
-        <button class="start-button" id="startButton" type="button">Start</button>
-      </aside>
+      </section>
     </main>
 
     <script src="script.js"></script>

@@ -1,18 +1,35 @@
 const bpmInput = document.querySelector("#bpmInput");
-const bpmSlider = document.querySelector("#bpmSlider");
+const bpmDisplay = document.querySelector("#bpmDisplay");
 const startButton = document.querySelector("#startButton");
-const beatCount = document.querySelector("#beatCount");
-const beatsSelect = document.querySelector("#beatsSelect");
+const stopButton = document.querySelector("#stopButton");
+const decreaseBpm = document.querySelector("#decreaseBpm");
+const increaseBpm = document.querySelector("#increaseBpm");
 const pendulum = document.querySelector("#pendulum");
+const statusPill = document.querySelector("#statusPill");
 const tunerButton = document.querySelector("#tunerButton");
 const noteName = document.querySelector("#noteName");
 const frequency = document.querySelector("#frequency");
+const targetNote = document.querySelector("#targetNote");
+const centDiff = document.querySelector("#centDiff");
 const tunerNeedle = document.querySelector("#tunerNeedle");
+const tuningState = document.querySelector("#tuningState");
+
+const minBpm = 40;
+const maxBpm = 220;
+const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const guitarNotes = [
+  { note: "E2", frequency: 82.41 },
+  { note: "A2", frequency: 110 },
+  { note: "D3", frequency: 146.83 },
+  { note: "G3", frequency: 196 },
+  { note: "B3", frequency: 246.94 },
+  { note: "E4", frequency: 329.63 },
+];
 
 let audioContext;
 let timerId;
 let isRunning = false;
-let currentBeat = 0;
+let currentBpm = 100;
 let swingSide = false;
 
 let tunerStream;
@@ -20,29 +37,30 @@ let tunerSource;
 let analyser;
 let tunerAnimation;
 let isTunerRunning = false;
-
-const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+let selectedTarget = null;
+let referenceOscillator;
+let referenceGain;
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("service-worker.js").catch(() => {
-      // The app still works when opened from file:// or an unsupported browser.
+      statusPill.textContent = "Local";
     });
   });
 }
 
 function clampBpm(value) {
-  return Math.min(240, Math.max(30, Number(value) || 120));
+  return Math.min(maxBpm, Math.max(minBpm, Math.round(Number(value) || currentBpm)));
 }
 
-function syncBpm(value) {
-  const bpm = clampBpm(value);
-  bpmInput.value = bpm;
-  bpmSlider.value = bpm;
+function setBpm(value) {
+  currentBpm = clampBpm(value);
+  bpmInput.value = currentBpm;
+  bpmDisplay.textContent = currentBpm;
+  updatePresetState();
 
   if (isRunning) {
-    stopMetronome();
-    startMetronome();
+    scheduleMetronome();
   }
 }
 
@@ -53,62 +71,103 @@ function ensureAudioContext() {
   return audioContext;
 }
 
-function playClick(accent = false) {
+async function resumeAudio() {
+  const ctx = ensureAudioContext();
+  if (ctx.state === "suspended") {
+    await ctx.resume();
+  }
+  return ctx;
+}
+
+function playClick() {
   const ctx = ensureAudioContext();
   const oscillator = ctx.createOscillator();
   const gain = ctx.createGain();
   const now = ctx.currentTime;
 
   oscillator.type = "square";
-  oscillator.frequency.setValueAtTime(accent ? 1320 : 880, now);
+  oscillator.frequency.setValueAtTime(1040, now);
   gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(accent ? 0.34 : 0.22, now + 0.004);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.055);
+  gain.gain.exponentialRampToValueAtTime(0.28, now + 0.004);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
 
   oscillator.connect(gain);
   gain.connect(ctx.destination);
   oscillator.start(now);
-  oscillator.stop(now + 0.06);
+  oscillator.stop(now + 0.07);
 }
 
 function tick() {
-  const beatsPerBar = Number(beatsSelect.value);
-  currentBeat = (currentBeat % beatsPerBar) + 1;
-  beatCount.textContent = currentBeat;
-  playClick(currentBeat === 1);
-
+  playClick();
   swingSide = !swingSide;
-  pendulum.classList.add("running");
   pendulum.classList.toggle("left", !swingSide);
   pendulum.classList.toggle("right", swingSide);
 }
 
-function startMetronome() {
-  const interval = 60000 / clampBpm(bpmInput.value);
+function scheduleMetronome() {
+  window.clearInterval(timerId);
+  if (!isRunning) return;
+  timerId = window.setInterval(tick, 60000 / currentBpm);
+}
+
+async function startMetronome() {
+  await resumeAudio();
+  if (isRunning) return;
+
   isRunning = true;
-  currentBeat = 0;
-  startButton.textContent = "Stop";
-  startButton.classList.add("active");
+  swingSide = false;
+  statusPill.textContent = "Playing";
   tick();
-  timerId = window.setInterval(tick, interval);
+  scheduleMetronome();
 }
 
 function stopMetronome() {
   isRunning = false;
   window.clearInterval(timerId);
-  startButton.textContent = "Start";
-  startButton.classList.remove("active");
-  pendulum.classList.remove("running", "right");
-  pendulum.classList.add("left");
+  statusPill.textContent = "Ready";
+  pendulum.classList.remove("left", "right");
+}
+
+function updatePresetState() {
+  document.querySelectorAll("[data-bpm]").forEach((button) => {
+    button.classList.toggle("active", Number(button.dataset.bpm) === currentBpm);
+  });
 }
 
 function frequencyToNote(freq) {
   const midi = Math.round(69 + 12 * Math.log2(freq / 440));
   const note = noteNames[((midi % 12) + 12) % 12];
   const octave = Math.floor(midi / 12) - 1;
-  const target = 440 * 2 ** ((midi - 69) / 12);
-  const cents = 1200 * Math.log2(freq / target);
-  return { note: `${note}${octave}`, cents };
+  const targetFrequency = 440 * 2 ** ((midi - 69) / 12);
+  const cents = 1200 * Math.log2(freq / targetFrequency);
+  return { note: `${note}${octave}`, cents, frequency: targetFrequency };
+}
+
+function closestGuitarTarget(freq) {
+  if (selectedTarget) return selectedTarget;
+
+  return guitarNotes.reduce((closest, candidate) => {
+    const closestDistance = Math.abs(1200 * Math.log2(freq / closest.frequency));
+    const candidateDistance = Math.abs(1200 * Math.log2(freq / candidate.frequency));
+    return candidateDistance < closestDistance ? candidate : closest;
+  }, guitarNotes[0]);
+}
+
+function centsAgainstTarget(freq, targetFrequency) {
+  return 1200 * Math.log2(freq / targetFrequency);
+}
+
+function updateTuningMeter(cents) {
+  const clamped = Math.max(-50, Math.min(50, cents));
+  tunerNeedle.style.left = `${50 + clamped}%`;
+
+  if (Math.abs(cents) <= 5) {
+    tuningState.textContent = "In Tune";
+  } else if (cents < 0) {
+    tuningState.textContent = "Flat";
+  } else {
+    tuningState.textContent = "Sharp";
+  }
 }
 
 function autoCorrelate(buffer, sampleRate) {
@@ -141,11 +200,7 @@ function autoCorrelate(buffer, sampleRate) {
     }
   }
 
-  if (bestCorrelation > 0.88 && bestOffset > 0) {
-    return sampleRate / bestOffset;
-  }
-
-  return -1;
+  return bestCorrelation > 0.88 && bestOffset > 0 ? sampleRate / bestOffset : -1;
 }
 
 function updateTuner() {
@@ -155,15 +210,17 @@ function updateTuner() {
   const detected = autoCorrelate(buffer, audioContext.sampleRate);
 
   if (detected > 0) {
-    const note = frequencyToNote(detected);
-    const cents = Math.max(-50, Math.min(50, note.cents));
-    const needlePosition = 50 + cents;
+    const detectedNote = frequencyToNote(detected);
+    const target = closestGuitarTarget(detected);
+    const cents = centsAgainstTarget(detected, target.frequency);
 
-    noteName.textContent = note.note;
+    noteName.textContent = detectedNote.note;
     frequency.textContent = `${detected.toFixed(1)} Hz`;
-    tunerNeedle.style.left = `${needlePosition}%`;
+    targetNote.textContent = `Target ${target.note} (${target.frequency.toFixed(2)} Hz)`;
+    centDiff.textContent = `${cents > 0 ? "+" : ""}${cents.toFixed(1)} cents`;
+    updateTuningMeter(cents);
   } else {
-    frequency.textContent = "소리를 내보세요";
+    frequency.textContent = "Play a note";
   }
 
   tunerAnimation = requestAnimationFrame(updateTuner);
@@ -171,19 +228,22 @@ function updateTuner() {
 
 async function startTuner() {
   try {
-    const ctx = ensureAudioContext();
+    await resumeAudio();
     tunerStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    tunerSource = ctx.createMediaStreamSource(tunerStream);
-    analyser = ctx.createAnalyser();
+    tunerSource = audioContext.createMediaStreamSource(tunerStream);
+    analyser = audioContext.createAnalyser();
     analyser.fftSize = 2048;
     tunerSource.connect(analyser);
 
     isTunerRunning = true;
-    tunerButton.textContent = "튜너 끄기";
+    tunerButton.textContent = "Mic Off";
+    tunerButton.classList.add("active");
+    tuningState.textContent = "Listening";
     updateTuner();
   } catch (error) {
     noteName.textContent = "--";
-    frequency.textContent = "마이크 권한 필요";
+    frequency.textContent = "Mic permission needed";
+    tuningState.textContent = "Idle";
   }
 }
 
@@ -194,33 +254,70 @@ function stopTuner() {
   tunerStream = null;
   tunerSource = null;
   analyser = null;
-  tunerButton.textContent = "튜너 켜기";
+  tunerButton.textContent = "Mic On";
+  tunerButton.classList.remove("active");
   noteName.textContent = "--";
-  frequency.textContent = "마이크 대기";
+  frequency.textContent = "Mic waiting";
+  tuningState.textContent = "Idle";
   tunerNeedle.style.left = "50%";
 }
 
-bpmInput.addEventListener("change", () => syncBpm(bpmInput.value));
-bpmSlider.addEventListener("input", () => syncBpm(bpmSlider.value));
-beatsSelect.addEventListener("change", () => {
-  currentBeat = 0;
-  beatCount.textContent = "1";
-});
+function stopReferenceTone() {
+  if (!referenceOscillator) return;
+  const now = audioContext.currentTime;
+  referenceGain.gain.cancelScheduledValues(now);
+  referenceGain.gain.setTargetAtTime(0.0001, now, 0.03);
+  referenceOscillator.stop(now + 0.12);
+  referenceOscillator = null;
+  referenceGain = null;
+}
 
-document.querySelectorAll("[data-step]").forEach((button) => {
-  button.addEventListener("click", () => {
-    syncBpm(clampBpm(bpmInput.value) + Number(button.dataset.step));
+async function playReferenceTone(note, freq) {
+  await resumeAudio();
+  stopReferenceTone();
+
+  selectedTarget = { note, frequency: freq };
+  targetNote.textContent = `Target ${note} (${freq.toFixed(2)} Hz)`;
+  centDiff.textContent = "Reference tone playing";
+
+  document.querySelectorAll("[data-note]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.note === note);
   });
+
+  referenceOscillator = audioContext.createOscillator();
+  referenceGain = audioContext.createGain();
+  referenceOscillator.type = "sine";
+  referenceOscillator.frequency.setValueAtTime(freq, audioContext.currentTime);
+  referenceGain.gain.setValueAtTime(0.0001, audioContext.currentTime);
+  referenceGain.gain.exponentialRampToValueAtTime(0.24, audioContext.currentTime + 0.03);
+  referenceGain.gain.setTargetAtTime(0.0001, audioContext.currentTime + 1.25, 0.08);
+  referenceOscillator.connect(referenceGain);
+  referenceGain.connect(audioContext.destination);
+  referenceOscillator.start();
+  referenceOscillator.stop(audioContext.currentTime + 1.8);
+  referenceOscillator.addEventListener("ended", () => {
+    referenceOscillator = null;
+    referenceGain = null;
+    if (!isTunerRunning) {
+      centDiff.textContent = "Reference tones work without the mic";
+    }
+  });
+}
+
+bpmInput.addEventListener("input", () => setBpm(bpmInput.value));
+decreaseBpm.addEventListener("click", () => setBpm(currentBpm - 1));
+increaseBpm.addEventListener("click", () => setBpm(currentBpm + 1));
+startButton.addEventListener("click", startMetronome);
+stopButton.addEventListener("click", stopMetronome);
+
+document.querySelectorAll("[data-bpm]").forEach((button) => {
+  button.addEventListener("click", () => setBpm(button.dataset.bpm));
 });
 
-startButton.addEventListener("click", async () => {
-  const ctx = ensureAudioContext();
-  if (ctx.state === "suspended") await ctx.resume();
-  if (isRunning) {
-    stopMetronome();
-  } else {
-    startMetronome();
-  }
+document.querySelectorAll("[data-note]").forEach((button) => {
+  button.addEventListener("click", () => {
+    playReferenceTone(button.dataset.note, Number(button.dataset.frequency));
+  });
 });
 
 tunerButton.addEventListener("click", async () => {
@@ -230,3 +327,11 @@ tunerButton.addEventListener("click", async () => {
     await startTuner();
   }
 });
+
+window.addEventListener("pagehide", () => {
+  stopMetronome();
+  stopReferenceTone();
+  if (isTunerRunning) stopTuner();
+});
+
+setBpm(currentBpm);
