@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0e1116" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="MetroTune" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>MetroTune</title>
+    <link rel="manifest" href="manifest.json" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icon.svg" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="stage" aria-label="Metronome and tuner">
+        <div class="brand">
+          <span class="brand-mark"></span>
+          <span>MetroTune</span>
+        </div>
+
+        <div class="metronome-wrap">
+          <div class="beat-orbit" aria-hidden="true">
+            <div class="pendulum" id="pendulum">
+              <span class="pendulum-weight"></span>
+            </div>
+          </div>
+          <div class="beat-readout">
+            <span id="beatCount">1</span>
+            <small>beat</small>
+          </div>
+        </div>
+
+        <section class="tuner" aria-label="Tuner">
+          <div class="tuner-display">
+            <span class="note" id="noteName">--</span>
+            <span class="frequency" id="frequency">마이크 대기</span>
+          </div>
+          <div class="tuner-meter" aria-hidden="true">
+            <span class="flat">♭</span>
+            <div class="meter-line">
+              <span class="meter-center"></span>
+              <span class="meter-needle" id="tunerNeedle"></span>
+            </div>
+            <span class="sharp">#</span>
+          </div>
+          <button class="secondary-button" id="tunerButton" type="button">튜너 켜기</button>
+        </section>
+      </section>
+
+      <aside class="controls" aria-label="Metronome controls">
+        <div class="bpm-panel">
+          <label for="bpmInput">BPM</label>
+          <input id="bpmInput" type="number" min="30" max="240" value="120" />
+          <input id="bpmSlider" type="range" min="30" max="240" value="120" />
+          <div class="step-controls" aria-label="BPM quick controls">
+            <button type="button" data-step="-5">-5</button>
+            <button type="button" data-step="-1">-1</button>
+            <button type="button" data-step="1">+1</button>
+            <button type="button" data-step="5">+5</button>
+          </div>
+        </div>
+
+        <div class="beat-panel">
+          <label for="beatsSelect">박자</label>
+          <select id="beatsSelect">
+            <option value="2">2/4</option>
+            <option value="3">3/4</option>
+            <option value="4" selected>4/4</option>
+            <option value="5">5/4</option>
+            <option value="6">6/8</option>
+          </select>
+        </div>
+
+        <button class="start-button" id="startButton" type="button">Start</button>
+      </aside>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
